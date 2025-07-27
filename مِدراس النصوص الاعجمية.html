@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8" />
+  <title>مِدراس النصوص الاعجمية</title>
+  <style>
+    body {
+    font-family: 'Segoe UI', sans-serif;
+    background-color: #f9f9f9;
+    padding: 20px;
+    max-width: 700px;
+    margin: 20px auto;
+    color: #333;
+    box-sizing: border-box;
+    }
+    
+    textarea {
+    width: 100%;
+    min-height: 100px;
+    resize: none;
+    margin-bottom: 10px;
+    padding: 10px;
+    font-size: 18px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-sizing: border-box;
+    }
+    
+    select,
+    input[type='file'],
+    input[type='number'] {
+    margin: 5px 0 15px 0;
+    padding: 6px;
+    font-size: 16px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    width: 100%;
+    box-sizing: border-box;
+    }
+    
+    button {
+    padding: 10px 18px;
+    font-size: 16px;
+    margin: 5px 5px 15px 0;
+    background-color: #0077cc;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    min-width: 120px;
+    }
+    
+    .row {
+    background: #fff;
+    margin-bottom: 20px;
+    padding: 15px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-sizing: border-box;
+    }
+    
+    .de {
+    direction: ltr;
+    font-size: 18px;
+    background-color: #eef5ff;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 5px;
+    }
+    
+    .ar {
+    direction: rtl;
+    font-size: 18px;
+    background-color: #fcfcfc;
+    padding: 10px;
+    border-top: 1px dashed #ccc;
+    border-radius: 4px;
+    }
+    
+    .audio-controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 20px 0;
+    box-sizing: border-box;
+    }
+    
+    /* تهيئة التصميم للشاشات الصغيرة */
+    @media (max-width: 600px) {
+    body {
+    padding: 10px;
+    margin: 10px;
+    max-width: 100%;
+    }
+    
+    textarea {
+    font-size: 16px;
+    }
+    
+    select,
+    input[type='file'],
+    input[type='number'] {
+    font-size: 14px;
+    }
+    
+    button {
+    width: 100%;
+    min-width: unset;
+    margin: 5px 0;
+    }
+    
+    .row {
+    padding: 10px;
+    }
+    
+    .audio-controls {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    }
+    }
+  </style>
+</head>
+<body>
+  <h2>📝 أدخل النص الأصلي</h2>
+  <textarea
+    id="germanInput"
+    placeholder="اكتب أو الصق النص هنا..."
+    oninput="autoResize(this)"
+  ></textarea>
+  <input type="file" id="fileInputDe" accept=".txt,.html,.txt.html" multiple />
+
+  <h3>🌍 اختر اللغة</h3>
+  <label for="sourceLang">من:</label>
+  <select id="sourceLang">
+    <option value="de">الألمانية</option>
+    <option value="en">الإنجليزية</option>
+    <option value="fr">الفرنسية</option>
+    <option value="es">الإسبانية</option>
+    <option value="it">الإيطالية</option>
+    <option value="ru">الروسية</option>
+    <option value="tr">التركية</option>
+    <option value="auto" selected>كشف تلقائي</option>
+  </select>
+  <br/>
+  <label for="targetLang">إلى:</label>
+  <select id="targetLang">
+    <option value="ar" selected>العربية</option>
+    <option value="tr">التركية</option>
+    <option value="de">الألمانية</option>
+    <option value="en">الإنجليزية</option>
+    <option value="fr">الفرنسية</option>
+    <option value="es">الإسبانية</option>
+    <option value="it">الإيطالية</option>
+    <option value="ru">الروسية</option>
+  </select>
+
+  <br />
+  <button onclick="splitAndTranslate()">📋 عرض الجمل + الترجمة</button>
+
+  <div class="audio-controls">
+    <label for="speedControl">🔁 السرعة:</label>
+    <input
+      type="number"
+      id="speedControl"
+      step="0.1"
+      value="1"
+      min="0.1"
+      max="10"
+    />
+    <button onclick="rewindAudio()">⏪ تراجع</button>
+    <button onclick="forwardAudio()">⏩ تقدم</button>
+    <button onclick="stopSpeaking()">⏹️ إيقاف القراءة</button>
+  </div>
+
+  <div id="output"></div>
+
+  <script>
+  
+  function debugLog(message) {
+  const debugDiv = document.getElementById('debug');
+  if(debugDiv) {
+  debugDiv.innerText += message + '\n';
+  } else {
+  const div = document.createElement('pre');
+  div.id = 'debug';
+  div.style.background = '#eee';
+  div.style.padding = '10px';
+  div.style.margin = '10px';
+  div.style.height = '150px';
+  div.style.overflow = 'auto';
+  div.innerText = message + '\n';
+  document.body.appendChild(div);
+  }
+  }
+    let germanSentences = [];
+    let currentUtteranceIndex = 0;
+    let isSpeaking = false;
+    let playButtons = [];
+
+    function autoResize(textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = textarea.scrollHeight + 'px';
+    }
+
+    function smartSplit(text) {
+      const parts = [];
+      let buffer = '';
+      const chars = text.split('');
+
+      for (let i = 0; i < chars.length; i++) {
+        buffer += chars[i];
+        if (['.', '!', '؟', '?'].includes(chars[i])) {
+          const nextChar = chars[i + 1] || '';
+          if (['.', '!', '؟', '?'].includes(nextChar)) continue;
+
+          const temp = buffer.trim();
+          const words = temp.slice(0, -1).trim().split(/\s+/);
+          const lastWord = words[words.length - 1] || '';
+
+          if (!/^[a-zA-Z]$/.test(lastWord)) {
+            parts.push(buffer.trim());
+            buffer = '';
+          }
+        }
+      }
+      if (buffer.trim().length > 0) parts.push(buffer.trim());
+      return parts;
+    }
+
+    async function translateSentence(sentence, sourceLang, targetLang) {
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceLang}&tl=${targetLang}&dt=t&q=${encodeURIComponent(
+        sentence
+      )}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      return data[0]?.map((pair) => pair[0]).join(' ') || '';
+    }
+
+async function splitAndTranslate() {
+  const text = document.getElementById('germanInput').value;
+  const sourceLang = document.getElementById('sourceLang').value || 'auto';
+  const targetLang = document.getElementById('targetLang').value || 'ar';
+
+  germanSentences = smartSplit(text);
+  const output = document.getElementById('output');
+  output.innerHTML = '⏳ يتم الترجمة، الرجاء الانتظار...🛑';
+
+  playButtons = new Array(germanSentences.length); // نهيئ المصفوفة بحجم ثابت
+
+  const rows = await Promise.all(
+    germanSentences.map(async (sentence, i) => {
+      const translation = await translateSentence(sentence, sourceLang, targetLang);
+
+      const row = document.createElement('div');
+      row.className = 'row';
+
+      const deDiv = document.createElement('div');
+      deDiv.className = 'de';
+
+      const span = document.createElement('span');
+      span.textContent = sentence;
+
+      const btn = document.createElement('button');
+      btn.textContent = '▶️ قراءة الجملة';
+      btn.style.marginLeft = '10px';
+      btn.onclick = () => {
+        if (isSpeaking && currentUtteranceIndex === i) {
+          stopSpeaking();
+        } else {
+          stopSpeaking();
+          currentUtteranceIndex = i;
+          speakSentence(i, sourceLang);
+        }
+      };
+
+      deDiv.appendChild(span);
+      deDiv.appendChild(btn);
+
+      playButtons[i] = btn; // تعيين الزر في الموقع الصحيح
+
+      const arDiv = document.createElement('div');
+      arDiv.className = 'ar';
+      arDiv.textContent = translation;
+
+      row.appendChild(deDiv);
+      row.appendChild(arDiv);
+      return row;
+    })
+  );
+
+  output.innerHTML = '';
+  rows.forEach((r) => output.appendChild(r));
+}
+
+    function speakSentence(index, lang) {
+      if (index >= germanSentences.length) {
+        stopSpeaking();
+        return;
+      }
+
+      isSpeaking = true;
+      
+      index > 0 && (playButtons[index-1].textContent= '▶️ قراءة الجملة');
+      playButtons[index].textContent= '⏹️ إيقاف';
+     
+      const utterance = new SpeechSynthesisUtterance(germanSentences[index]);
+
+      // ضبط اللغة بشكل دقيق
+      if (lang === 'auto') {
+        utterance.lang = 'de-DE';
+      } else {
+        utterance.lang = lang + '-' + lang.toUpperCase();
+      }
+
+      utterance.rate = parseFloat(document.getElementById('speedControl').value) || 1;
+
+      utterance.onend = () => {
+        if (!isSpeaking) {
+          stopSpeaking();
+          return;
+        }
+
+        currentUtteranceIndex++;
+
+        if (currentUtteranceIndex < germanSentences.length) {
+          speakSentence(currentUtteranceIndex, lang);
+        } else {
+          stopSpeaking();
+        }
+      };
+
+      speechSynthesis.speak(utterance);
+    }
+
+    function stopSpeaking() {
+      isSpeaking = false;
+      speechSynthesis.cancel();
+      playButtons.forEach((btn) => (btn.textContent = '▶️ قراءة الجملة'));
+    }
+
+    function rewindAudio() {
+      if (currentUtteranceIndex > 0) {
+        speechSynthesis.cancel();
+        currentUtteranceIndex--;
+        speakSentence(currentUtteranceIndex, document.getElementById('sourceLang').value);
+      }
+    }
+
+    function forwardAudio() {
+      if (currentUtteranceIndex < germanSentences.length - 1) {
+        speechSynthesis.cancel();
+        currentUtteranceIndex++;
+        speakSentence(currentUtteranceIndex, document.getElementById('sourceLang').value);
+      }
+    }
+
+    // دعم رفع الملفات للنص الأصلي
+    function setupFileInput(InputId, targetTextareaId) {
+      document.getElementById(InputId).addEventListener('change', async function (event) {
+        const files = event.target.files;
+        if (!files.length) return;
+
+        let combinedText = '';
+
+        for (let file of files) {
+          const content = await readFileAsText(file);
+          combinedText += content + '\n\n';
+        }
+
+        document.getElementById(targetTextareaId).value = combinedText.trim();
+        autoResize(document.getElementById(targetTextareaId));
+      });
+    }
+
+    function readFileAsText(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = reject;
+        reader.readAsText(file, 'UTF-8');
+      });
+    }
+
+    setupFileInput('fileInputDe', 'germanInput');
+
+    debugLog('هنا رسالة تصحيح');
+    debugLog("اضف الدليل للموقع : زخرف جانبي فيه مواضع من الصفحة او الموقع و خانة تذييل و خانة خواص مستورة1")
+    debugLog("اضف لغات اكثر2")
+    debugLog("3 تتبع جمل تلقائي")
+    debugLog("4 تحميل ثقيل -كسول-")
+  </script>
+</body>
+</html>
