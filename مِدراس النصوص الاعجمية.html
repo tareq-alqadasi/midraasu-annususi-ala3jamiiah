@@ -38,6 +38,20 @@
     box-sizing: border-box;
     }
     
+    #audio-controls{
+    position : fixed;
+    top: 10px;         /* Distance from the top */
+    right: 10px;       /* Distance from the right */
+    z-index: 1000;
+    width: 100px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 20px 0;
+    box-sizing: border-box;
+    }
+    
     button {
     padding: 10px 18px;
     font-size: 16px;
@@ -77,15 +91,6 @@
     border-radius: 4px;
     }
     
-    .audio-controls {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin: 20px 0;
-    box-sizing: border-box;
-    }
-    
     /* تهيئة التصميم للشاشات الصغيرة */
     @media (max-width: 600px) {
     body {
@@ -100,7 +105,7 @@
     
     select,
     input[type='file'],
-    input[type='number'] {
+    input[type='number']{
     font-size: 14px;
     }
     
@@ -159,24 +164,31 @@
   <br />
   <button onclick="splitAndTranslate()">📋 عرض الجمل + الترجمة</button>
 
-  <div class="audio-controls">
-    <label for="speedControl">🔁 السرعة:</label>
+  <div id="audio-controls" class="audio-controls">
+    <label for="speedInput">🔁 السرعة:</label>
     <input
       type="number"
-      id="speedControl"
-      step="0.1"
+      id="speedInput"
       value="1"
-      min="0.1"
-      max="10"
     />
     <button onclick="rewindAudio()">⏪ تراجع</button>
     <button onclick="forwardAudio()">⏩ تقدم</button>
     <button onclick="stopSpeaking()">⏹️ إيقاف القراءة</button>
+    <div id="speedControl">السرعة : </div>
   </div>
 
   <div id="output"></div>
 
   <script>
+  let value = parseFloat(document.getElementById('speedInput').value);
+  document.getElementById('speedInput').addEventListener('change',()=>{
+    value = parseFloat(document.getElementById('speedInput').value);
+    });
+  const increment =  1/10000; // 0.0001
+  setInterval(() => {
+  value += increment;
+  document.getElementById('speedControl').textContent = `السرعة : ${value.toString()}`
+  }, 1000); // every 1000 ms = 1 second
   
   function debugLog(message) {
   const debugDiv = document.getElementById('debug');
@@ -192,6 +204,7 @@
   div.style.overflow = 'auto';
   div.innerText = message + '\n';
   document.body.appendChild(div);
+  
   }
   }
     let germanSentences = [];
