@@ -146,7 +146,7 @@
     <option value="it">الإيطالية</option>
     <option value="ru">الروسية</option>
     <option value="tr">التركية</option>
-    <option value="auto" selected>كشف تلقائي</option>
+    <option value="auto" selected>كشف تلقائي (=الماني فقط حالياً)</option>
   </select>
   <br/>
   <label for="targetLang">إلى:</label>
@@ -173,45 +173,64 @@
     />
     <button onclick="rewindAudio()">⏪ تراجع</button>
     <button onclick="forwardAudio()">⏩ تقدم</button>
-    <button onclick="stopSpeaking()">⏹️ إيقاف القراءة</button>
+    <button onclick="togglePauseResume()" id="pauseResumeBtn">⏸️ تشغيل</button>
+    <label for="incrementInput">↗️ التدريج:</label>
+    <input type="number" id="incrementInput" value="0.0001" step="0.0001" />
+    <button onclick="toggleIncrement()" id="incrementToggleBtn">⏸️ أوقف التدرج</button>
     <div id="speedControl">السرعة : </div>
   </div>
+  <div> الجملة الحالية </div>
+  <div id="currentRow" style="margin-bottom: 20px; padding: 15px; background: #e7f3ff; border: 1px solid #b3d7ff; border-radius: 6px;"></div>
 
   <div id="output"></div>
 
   <script>
-  let value = parseFloat(document.getElementById('speedInput').value);
-  document.getElementById('speedInput').addEventListener('change',()=>{
-    value = parseFloat(document.getElementById('speedInput').value);
+    let speed = parseFloat(document.getElementById('speedInput').value);
+    document.getElementById('speedInput').addEventListener('change',()=>{
+    speed = parseFloat(document.getElementById('speedInput').value);
     });
-  const increment =  1/10000; // 0.0001
-  setInterval(() => {
-  value += increment;
-  document.getElementById('speedControl').textContent = `السرعة : ${value.toString()}`
-  }, 1000); // every 1000 ms = 1 second
+    let increment = parseFloat(document.getElementById('incrementInput').value);
+    let isIncrementActive = true;
+    
+    setInterval(() => {
+      if (isIncrementActive) {
+        increment = parseFloat(document.getElementById('incrementInput').value) || 0;
+        speed += increment;
+        document.getElementById('speedControl').textContent = `السرعة : ${speed.toFixed(4)}`;
+      }
+    }, 1000);
+    
+    function toggleIncrement() {
+      isIncrementActive = !isIncrementActive;
+      const btn = document.getElementById('incrementToggleBtn');
+      btn.textContent = isIncrementActive ? '⏸️ أوقف التدرج' : '▶️ استئناف التدرج';
+    }
+    
+    function debugLog(message) {
+    const debugDiv = document.getElementById('debug');
+    if(debugDiv) {
+    debugDiv.innerText += message + '\n';
+    } else {
+    const div = document.createElement('pre');
+    div.id = 'debug';
+    div.style.background = '#eee';
+    div.style.padding = '10px';
+    div.style.margin = '10px';
+    div.style.height = '150px';
+    div.style.overflow = 'auto';
+    div.innerText = message + '\n';
+    document.body.appendChild(div);
+    
+    }
+    }
   
-  function debugLog(message) {
-  const debugDiv = document.getElementById('debug');
-  if(debugDiv) {
-  debugDiv.innerText += message + '\n';
-  } else {
-  const div = document.createElement('pre');
-  div.id = 'debug';
-  div.style.background = '#eee';
-  div.style.padding = '10px';
-  div.style.margin = '10px';
-  div.style.height = '150px';
-  div.style.overflow = 'auto';
-  div.innerText = message + '\n';
-  document.body.appendChild(div);
   
-  }
-  }
     let germanSentences = [];
     let currentUtteranceIndex = 0;
     let isSpeaking = false;
     let playButtons = [];
-
+    let isPaused = false;
+    
     function autoResize(textarea) {
       textarea.style.height = 'auto';
       textarea.style.height = textarea.scrollHeight + 'px';
@@ -250,63 +269,67 @@
       const data = await response.json();
       return data[0]?.map((pair) => pair[0]).join(' ') || '';
     }
-
-async function splitAndTranslate() {
-  const text = document.getElementById('germanInput').value;
-  const sourceLang = document.getElementById('sourceLang').value || 'auto';
-  const targetLang = document.getElementById('targetLang').value || 'ar';
-
-  germanSentences = smartSplit(text);
-  const output = document.getElementById('output');
-  output.innerHTML = '⏳ يتم الترجمة، الرجاء الانتظار...🛑';
-
-  playButtons = new Array(germanSentences.length); // نهيئ المصفوفة بحجم ثابت
-
-  const rows = await Promise.all(
+    
+    
+    async function splitAndTranslate() {
+    const text = document.getElementById('germanInput').value;
+    const sourceLang = document.getElementById('sourceLang').value || 'auto';
+    const targetLang = document.getElementById('targetLang').value || 'ar';
+    
+    currentUtteranceIndex = 0;
+    document.getElementById('pauseResumeBtn').textContent = '⏸️ تشغيل';
+    
+    germanSentences = smartSplit(text);
+    const output = document.getElementById('output');
+    output.innerHTML = '⏳ يتم الترجمة، الرجاء الانتظار...🛑';
+    
+    playButtons = new Array(germanSentences.length); // نهيئ المصفوفة بحجم ثابت
+    
+    const rows = await Promise.all(
     germanSentences.map(async (sentence, i) => {
-      const translation = await translateSentence(sentence, sourceLang, targetLang);
-
-      const row = document.createElement('div');
-      row.className = 'row';
-
-      const deDiv = document.createElement('div');
-      deDiv.className = 'de';
-
-      const span = document.createElement('span');
-      span.textContent = sentence;
-
-      const btn = document.createElement('button');
-      btn.textContent = '▶️ قراءة الجملة';
-      btn.style.marginLeft = '10px';
-      btn.onclick = () => {
-        if (isSpeaking && currentUtteranceIndex === i) {
-          stopSpeaking();
-        } else {
-          stopSpeaking();
-          currentUtteranceIndex = i;
-          speakSentence(i, sourceLang);
-        }
-      };
-
-      deDiv.appendChild(span);
-      deDiv.appendChild(btn);
-
-      playButtons[i] = btn; // تعيين الزر في الموقع الصحيح
-
-      const arDiv = document.createElement('div');
-      arDiv.className = 'ar';
-      arDiv.textContent = translation;
-
-      row.appendChild(deDiv);
-      row.appendChild(arDiv);
-      return row;
+    const translation = await translateSentence(sentence, sourceLang, targetLang);
+    
+    const row = document.createElement('div');
+    row.className = 'row';
+    
+    const deDiv = document.createElement('div');
+    deDiv.className = 'de';
+    
+    const span = document.createElement('span');
+    span.textContent = sentence;
+    
+    const btn = document.createElement('button');
+    btn.textContent = '▶️ قراءة الجملة';
+    btn.style.marginLeft = '10px';
+    btn.onclick = () => {
+    if (isSpeaking && currentUtteranceIndex === i) {
+    stopSpeaking();
+    } else {
+    stopSpeaking();
+    currentUtteranceIndex = i;
+    speakSentence(i, sourceLang);
+    }
+    };
+    
+    deDiv.appendChild(span);
+    deDiv.appendChild(btn);
+    
+    playButtons[i] = btn; // تعيين الزر في الموقع الصحيح
+    
+    const arDiv = document.createElement('div');
+    arDiv.className = 'ar';
+    arDiv.textContent = translation;
+    
+    row.appendChild(deDiv);
+    row.appendChild(arDiv);
+    return row;
     })
-  );
-
-  output.innerHTML = '';
-  rows.forEach((r) => output.appendChild(r));
-}
-
+    );
+    
+    output.innerHTML = '';
+    rows.forEach((r) => output.appendChild(r));
+    }
+    
     function speakSentence(index, lang) {
       if (index >= germanSentences.length) {
         stopSpeaking();
@@ -317,17 +340,20 @@ async function splitAndTranslate() {
       
       index > 0 && (playButtons[index-1].textContent= '▶️ قراءة الجملة');
       playButtons[index].textContent= '⏹️ إيقاف';
-     
+      const clonedRow = playButtons[index].closest('.row').cloneNode(true);
+      document.getElementById('currentRow').innerHTML = '';
+      document.getElementById('currentRow').appendChild(clonedRow);
+      
       const utterance = new SpeechSynthesisUtterance(germanSentences[index]);
 
       // ضبط اللغة بشكل دقيق
       if (lang === 'auto') {
-        utterance.lang = 'de-DE';
+        utterance.lang = 'de-DE'; //placeholder
       } else {
         utterance.lang = lang + '-' + lang.toUpperCase();
       }
-
-      utterance.rate = parseFloat(document.getElementById('speedControl').value) || 1;
+      
+      utterance.rate = parseFloat(speed) || 1;
 
       utterance.onend = () => {
         if (!isSpeaking) {
@@ -348,10 +374,37 @@ async function splitAndTranslate() {
     }
 
     function stopSpeaking() {
-      isSpeaking = false;
-      speechSynthesis.cancel();
-      playButtons.forEach((btn) => (btn.textContent = '▶️ قراءة الجملة'));
+      isSpeaking = false;
+      isPaused = false;
+      speechSynthesis.cancel();
+      playButtons.forEach((btn) => (btn.textContent = '▶️ قراءة الجملة'));
+      document.getElementById('currentRow').innerHTML = '';
+      document.getElementById('pauseResumeBtn').textContent = '⏸️ إيقاف مؤقت';
     }
+    
+    function togglePauseResume() {
+      const btn = document.getElementById('pauseResumeBtn');
+    
+      if (!isSpeaking) {
+        isPaused = false;
+        btn.textContent = '⏸️ إيقاف مؤقت';
+        speakSentence(0, document.getElementById('sourceLang').value);
+      }
+    
+      if (!isPaused) {
+        // ⏸️ إيقاف مؤقت
+        speechSynthesis.cancel(); // نلغي الكلام
+        isPaused = true;
+        btn.textContent = '▶️ استئناف';
+      } else {
+        // ▶️ استئناف = إعادة تشغيل الجملة الحالية
+        isPaused = false;
+        btn.textContent = '⏸️ إيقاف مؤقت';
+        speakSentence(currentUtteranceIndex, document.getElementById('sourceLang').value);
+      }
+    }
+    
+    
 
     function rewindAudio() {
       if (currentUtteranceIndex > 0) {
@@ -405,4 +458,4 @@ async function splitAndTranslate() {
     debugLog("4 تحميل ثقيل -كسول-")
   </script>
 </body>
-</html>
+</html> 
